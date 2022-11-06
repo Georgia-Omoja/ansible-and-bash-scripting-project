@@ -1,0 +1,28 @@
+# host user
+ansible_host_user: root
+
+# This tells us the version of the php and it dependencies to install
+php_version: 8.1
+
+# This tells the domain name
+vhost_name: "georgialaravel"
+
+# This tells us the name of the configuration file that will be created within Apache
+vhost_conf: "georgialaravel.conf"
+
+# This tells us the HTTP port for the virtual host
+vhost_port: "80"
+
+Variables for MySQL Setup
+root_password: MYSQL_ROOT_PASSWORD
+mysql_app_db: laravel
+mysql_app_user: laravel_user
+mysql_app_password: DB_PASSWORD
+
+Variables for Laravel Environment File
+app_name: laravel
+app_env: local
+app_debug: true
+app_url: "http://{{ vhost_name }}.me"
+db_host: localhost
+db_port: 3306

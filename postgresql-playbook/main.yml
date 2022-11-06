@@ -1,0 +1,15 @@
+---
+- name: Setting up Postgresql on Server
+  remote_user: root
+  hosts: 
+  become: true
+  become_method: sudo
+  tasks:
+    - name: Copying pgsql-script file with permissions
+      copy:
+         src: pgsql-script.sh
+         dest: /root
+         mode: '0755'
+
+    - name: Running pgsql-script
+      shell: bash pgsql-script.sh

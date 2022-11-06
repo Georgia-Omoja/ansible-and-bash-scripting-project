@@ -1,0 +1,206 @@
+---
+
+- name: Setting up ansible host
+  hosts: laravel
+  remote_user: "{{ ansible_host_user }}"
+  become: true
+  become_method: sudo
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - name: Updating Cache/Software Repository
+      apt: update_cache=yes
+
+    - name: Installing Net-tools
+      apt:
+         name: net-tools
+         state: present
+
+    - name: Ensuring NTP service is up and running
+      systemd:
+         state: started
+         name: systemd-timesyncd
+
+    - name: Setting hostname
+      hostname:
+         name: server.georgialaravel.me
+
+    - name: Setting hostname transient
+      shell: hostnamectl set-hostname server.georgialaravel.me --transient
+
+    - name: Setting hostname pretty
+      shell: hostnamectl set-hostname "Georgia's Server" --pretty
+
+    - name: Setting timezone
+      timezone:
+         name: Africa/Lagos
+
+    - name: UFW - Allowing SSH connections
+      ufw:
+         rule: allow
+         name: OpenSSH
+
+    - name: UFW - Allowing rate limiting on ssh
+      ufw:
+         rule: limit
+         port: ssh
+         proto: tcp
+
+    - name: UFW - Allowing everything and enabling UFW
+      ufw:
+        state: enabled
+        policy: allow
+
+- name: Laravel Deployment
+  hosts: laravel
+  remote_user: "{{ ansible_host_user }}"
+  become: 'true'
+  become_method: sudo
+  vars_files:
+    - vars/main.yml
+  tasks:
+    - name: Updating software repository
+      apt:
+         update_cache: yes
+         upgrade: yes
+
+    - name: Installing PREREQUISITES FOR PHP REPOSITORY
+      apt:
+         name: ['ca-certificates', 'apt-transport-https', 'software-properties-common']
+         state: latest
+
+    - name: Updating software repository
+      apt: update_cache=yes
+
+    - name: Installing LAMP, MYSQL and PHP dependencies
+      apt:
+         name: ['git', 'unzip', 'mysql-server', 'apache2', 'php{{php_version}}', 'php{{php_version}}-mbstring', 'php{{php_version}}-xml', 'php{{php_version}}-zip', 'php{{php_version}}-gd', 'php{{php_version}}-dev', 'php{{php_version}}-curl', 'php{{php_version}}-mysql', 'libapache2-mod-php', 'python3-mysqldb', 'python3-pymysql', 'libmysqlclient-dev', 'python3-dev', 'python3',  'python3-pip']
+         state: latest
+
+    - name: Making sure apache service is running
+      service:
+          state: started
+          name: apache2
+
+    - name: Starting and Enabling mysql service
+      service:
+         name: mysql.service
+         state: started
+
+    - name: Setting root user password
+      mysql_user:
+         name: root
+         password: "{{ root_password }}"
+         login_unix_socket: /var/run/mysqld/mysqld.sock
+         state: present
+
+    - name: Creating laravel database
+      mysql_db:
+         name: "{{ mysql_app_db }}"
+         login_user: root
+         login_password: "{{ root_password }}"
+         login_unix_socket: /var/run/mysqld/mysqld.sock
+         state: present
+
+    - name: Creating mysql user (laravel_user)
+      mysql_user:
+         name: "{{ mysql_app_user }}"
+         login_user: root
+         login_password: "{{ root_password }}"
+         login_unix_socket: /var/run/mysqld/mysqld.sock
+         password: "{{ mysql_app_password }}"
+         priv: '*.*:ALL'
+         state: present
+
+    - name: Installing composer
+      shell: curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+      args:
+         creates: /usr/local/bin/composer
+
+    - name: Making composer binary file executable
+      file:
+         path: /usr/local/bin/composer
+         state: file
+         mode: 0755
+
+    - name: Cloning Repository
+      git: >
+         repo=https://github.com/f1amy/laravel-realworld-example-app.git
+         dest=/opt/{{ vhost_name }}
+         force=yes
+         accept_hostkey=yes
+
+    - name: Renaming laravel project
+      shell: mv /opt/{{ vhost_name }} /var/www/html
+
+    - name: Granting ownership to repo
+      shell: chown -R www-data:www-data /var/www/html/{{ vhost_name }}
+
+    - name: Changing permission for storage directory of repo
+      shell: chmod -R 775 /var/www/html/{{ vhost_name }}/storage
+
+    - name: Changing permission for repo
+      shell: chmod -R 775 /var/www/html/{{ vhost_name }}
+
+    - name: Renaming environment variable
+      shell: sudo mv /var/www/html/{{ vhost_name }}/.env.example /var/www/html/{{ vhost_name }}/.env
+
+    - name: Setting up .env file
+      template:
+         src: "~/ansible/laravel-playbook/files/.env.j2"
+         dest: "/var/www/html/{{ vhost_name }}/.env"
+         mode: 0775
+
+    - name: Installing laravel dependencies using composer install
+      composer:
+         command: install
+         working_dir: /var/www/html/{{ vhost_name }}
+         no_dev: no
+      environment:
+         COMPOSER_NO_INTERACTION: "1"
+         COMPOSER_ALLOW_SUPERUSER: "1"
+
+    - name: Setting up laravel
+      shell: |
+         cd /var/www/html/{{ vhost_name }}
+         php artisan key:generate
+         php artisan migrate
+         php artisan migrate --seed
+
+    - name: Removing default apache vhost config from sites-enabled
+      file:
+         name: /etc/apache2/sites-enabled/000-default.conf
+         state: absent
+
+    - name: Setting up Apache host for domain
+      template:
+         src: "~/ansible/laravel-playbook/files/georgialaravel.conf.j2"
+         dest: "/etc/apache2/sites-available/{{ vhost_conf }}"
+
+    - name: Enabling new site
+      shell: /usr/sbin/a2ensite "{{ vhost_conf }}"
+      notify: Reload Apache
+
+    - name: Upgrading System
+      apt: update_cache=yes
+
+    - name: Installing Certbot's apache package
+      apt:
+         name: python3-certbot-apache
+         state: present
+
+    - name: Generating new ssl certificate .
+      shell: "certbot --apache --agree-tos --redirect --non-interactive -m admin@georgialaravel.me -d georgialaravel.me -d www.georgialaravel.me"
+
+    - name: Resolving 404 display error
+      template:
+         src: "~/ansible/laravel-playbook/files/web.php.j2"
+         dest: "/var/www/html/{{ vhost_name }}/routes/web.php"
+         mode: 0775
+      notify: Reload Apache
+
+  handlers:
+    - name: Reload Apache
+      service:
+        name: apache2
+        state: reloaded
