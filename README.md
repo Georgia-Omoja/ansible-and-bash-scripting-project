@@ -1,4 +1,4 @@
-LARAVEL DEPLOYMENT AND POSTGRESQL SETUP(BASH SCRIPT) USING ANISBLE
+# LARAVEL DEPLOYMENT AND POSTGRESQL SETUP(BASH SCRIPT) USING ANISBLE
 
 This material is intended to demonstrate how to use playbooks to automate server setup and run a bashscript for installing and setting up postgresql.
 
@@ -12,12 +12,12 @@ On the other side, Postgres is a free, open-source relational database. It's ful
 
 The repository, contains two sets of playbooks; one will show you the process of setting up a remote LAMP server (Linux(Ubuntu), (A)Apache2, MySql and PHP) on Ubuntu 22.04 and to deploy a demo Laravel project to this server and the other on setting up and executing a bashscript for installing and setting up Postgresql on this said server.
 
-PREREQUISITES/SETUP
+## PREREQUISITES/SETUP
 1. One Ansible control node: an Ubuntu 20.04 machine with Ansible installed and configured to connect to  Ansible hosts using SSH keys. And a set of valid SSH keys. 
 
 2. One or more Ansible Hosts: one or more remote Ubuntu 22.04 servers. Each host must have the control nodes public key added to its authorized_keys.
 
-STEPS
+## STEPS
 The playbook for Laravel Application Deployment consist of some of the following steps:
 1. Create one or more instances on Digital Ocean
 2. Configure ssh connection for desired user
@@ -48,7 +48,7 @@ The playbook for Laravel Application Deployment consist of some of the following
 14. SSL certbot
 14. Launch
 
-The BASH Script for the installation and setup of Postgresql consist of the following steps
+### The BASH Script for the installation and setup of Postgresql consist of the following steps
 1. Install pre-requisite software packages
 2. Obtain and add software certificates to apt key management
 3. create new configuration file with the official postgresql repository address
